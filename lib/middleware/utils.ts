@@ -1,20 +1,25 @@
 import { NextRequest } from "next/server";
-import { redis } from "#/lib/upstash";
 
 export const parse = (req: NextRequest) => {
   let domain = req.headers.get("host") as string;
   domain = domain.replace("www.", ""); // remove www. from domain
   if (domain === "dub.localhost:8888" || domain === "staging.dub.sh") {
-    // for local development & staging environments
+    // for local development and staging environments
     domain = "dub.sh";
   }
 
   // path is the path of the URL (e.g. dub.co/stats/github -> /stats/github)
-  const path = req.nextUrl.pathname;
+  let path = req.nextUrl.pathname;
+
+  // special case for dub.sh/___dub_check/ (for checking if dub.sh links are working)
+  if (path.startsWith("/___dub_check/")) {
+    domain = "dub.sh";
+    path = path.replace("/___dub_check/", "/");
+  }
 
   // fullPath is the full URL path (along with search params)
   const searchParams = req.nextUrl.searchParams.toString();
-  const fullPath = `${req.nextUrl.pathname}${
+  const fullPath = `${path}${
     searchParams.length > 0 ? `?${searchParams}` : ""
   }`;
 
@@ -26,11 +31,14 @@ export const parse = (req: NextRequest) => {
 };
 
 export const getFinalUrl = (target: string, { req }: { req: NextRequest }) => {
-  // query is the query string (e.g. dub.sh/github/repo?utm_source=twitter -> ?utm_source=twitter)
+  // query is the query string (e.g. dub.sh/github?utm_source=twitter -> ?utm_source=twitter)
   const searchParams = req.nextUrl.searchParams;
 
   // get the query params of the target url
   const targetUrl = new URL(decodeURIComponent(target));
+
+  // @ts-ignore – until https://github.com/microsoft/TypeScript/issues/54466 is fixed
+  if (searchParams.size === 0) return targetUrl; // if there are no query params, then return the target url as is (no need to parse it
 
   // if searchParams (type: `URLSearchParams`) has the same key as target url, then overwrite it
   for (const [key, value] of searchParams) {

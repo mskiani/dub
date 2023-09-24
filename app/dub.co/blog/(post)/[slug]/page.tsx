@@ -10,6 +10,8 @@ import { constructMetadata, formatDate } from "#/lib/utils";
 import BlurImage from "#/ui/blur-image";
 import { BLOG_CATEGORIES } from "#/lib/constants/content";
 import { getAndCacheTweet } from "#/lib/twitter";
+import getRepos from "#/lib/github";
+import CTA from "#/ui/home/cta";
 
 export async function generateStaticParams() {
   return allBlogPosts.map((post) => ({
@@ -48,7 +50,7 @@ export default async function BlogArticle({
     notFound();
   }
 
-  const [thumbnailBlurhash, images, tweets] = await Promise.all([
+  const [thumbnailBlurhash, images, tweets, repos] = await Promise.all([
     getBlurDataURL(data.image),
     await Promise.all(
       data.images.map(async (src: string) => ({
@@ -59,6 +61,7 @@ export default async function BlogArticle({
     await Promise.all(
       data.tweetIds.map(async (id: string) => getAndCacheTweet(id)),
     ),
+    getRepos(data.githubRepos),
   ]);
 
   const category = BLOG_CATEGORIES.find(
@@ -90,7 +93,7 @@ export default async function BlogArticle({
               {formatDate(data.publishedAt)}
             </time>
           </div>
-          <h1 className="font-display text-3xl font-extrabold text-gray-700 sm:text-4xl">
+          <h1 className="font-display text-3xl font-extrabold text-gray-700 sm:text-4xl sm:leading-snug">
             {data.title}
           </h1>
           <p className="text-xl text-gray-500">{data.summary}</p>
@@ -98,9 +101,9 @@ export default async function BlogArticle({
       </MaxWidthWrapper>
 
       <div className="relative">
-        <div className="absolute top-52 h-full w-full border border-gray-200 bg-white/50 shadow-[inset_10px_-50px_94px_0_rgb(199,199,199,0.2)] backdrop-blur-lg" />
-        <MaxWidthWrapper className="grid grid-cols-4 gap-10 px-0 py-10">
-          <div className="relative col-span-4 mb-10 flex flex-col space-y-8 bg-white sm:rounded-xl sm:border sm:border-gray-200 md:col-span-3">
+        <div className="absolute top-52 h-[calc(100%-13rem)] w-full border border-gray-200 bg-white/50 shadow-[inset_10px_-50px_94px_0_rgb(199,199,199,0.2)] backdrop-blur-lg" />
+        <MaxWidthWrapper className="grid grid-cols-4 gap-5 px-0 pt-10 lg:gap-10">
+          <div className="relative col-span-4 flex flex-col space-y-8 bg-white sm:rounded-t-xl sm:border sm:border-gray-200 md:col-span-3">
             <BlurImage
               className="aspect-[1200/630] rounded-t-xl object-cover"
               src={data.image}
@@ -114,6 +117,7 @@ export default async function BlogArticle({
               code={data.body.code}
               images={images}
               tweets={tweets}
+              repos={repos}
               className="px-5 pb-20 pt-4 sm:px-10"
             />
           </div>
@@ -150,6 +154,7 @@ export default async function BlogArticle({
           </div>
         </MaxWidthWrapper>
       </div>
+      <CTA />
     </>
   );
 }

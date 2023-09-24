@@ -21,18 +21,18 @@ export default async function LinkMiddleware(
     return NextResponse.next();
   }
 
-  if (process.env.NODE_ENV !== "development" && domain === "dub.sh") {
-    if (
-      key === "github" &&
-      (await isBlacklistedReferrer(req.headers.get("referer")))
-    ) {
+  if (
+    process.env.NODE_ENV !== "development" &&
+    domain === "dub.sh" &&
+    key === "github"
+  ) {
+    if (await isBlacklistedReferrer(req.headers.get("referer"))) {
       return new Response("Don't DDoS me pls 🥺", { status: 429 });
     }
     const ip = ipAddress(req) || LOCALHOST_IP;
-    const { success } = await ratelimit(
-      10,
-      key === "github" ? "1 d" : "10 s",
-    ).limit(`${ip}:${domain}:${key}`);
+    const { success } = await ratelimit(10, "1 d").limit(
+      `${ip}:${domain}:${key}`,
+    );
 
     if (!success) {
       return new Response("Don't DDoS me pls 🥺", { status: 429 });
@@ -91,8 +91,14 @@ export default async function LinkMiddleware(
     const { country } =
       process.env.VERCEL === "1" && req.geo ? req.geo : LOCALHOST_GEO_DATA;
 
-    // rewrite to target URL if link cloaking is enabled
-    if (rewrite) {
+    // rewrite to proxy page (/_proxy/[domain]/[key]) if it's a bot and proxy is enabled
+    if (isBot && proxy) {
+      return NextResponse.rewrite(
+        new URL(`/proxy/${domain}/${encodeURIComponent(key)}`, req.url),
+      );
+
+      // rewrite to target URL if link cloaking is enabled
+    } else if (rewrite) {
       if (iframeable) {
         return NextResponse.rewrite(
           new URL(`/rewrite/${target}`, req.url),
@@ -102,12 +108,6 @@ export default async function LinkMiddleware(
         // if link is not iframeable, use Next.js rewrite instead
         return NextResponse.rewrite(decodeURIComponent(target), DUB_HEADERS);
       }
-
-      // rewrite to proxy page (/_proxy/[domain]/[key]) if it's a bot and proxy is enabled
-    } else if (isBot && proxy) {
-      return NextResponse.rewrite(
-        new URL(`/proxy/${domain}/${encodeURIComponent(key)}`, req.url),
-      );
 
       // redirect to iOS link if it is specified and the user is on an iOS device
     } else if (ios && userAgent(req).os?.name === "iOS") {
